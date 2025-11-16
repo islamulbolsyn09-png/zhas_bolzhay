@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8">
+  <title>Адам жасын анықтау</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.12.0"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+<header class="bg-blue-800 text-white p-6">
+  <h1 class="text-3xl font-bold">📷 Адам жасын анықтау</h1>
+  <p class="mt-2">Фото жүктеу немесе веб-камера арқылы жас болжау</p>
+</header>
+
+<main class="p-6">
+  <div class="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
+
+    <!-- Сол жақ: Фото жүктеу + Веб-камера -->
+    <div class="bg-white p-6 rounded shadow">
+      <h2 class="text-xl font-semibold mb-4">🖼️ Фото жүктеу</h2>
+      
+      <input type="file" id="imageLoader" accept="image/*" class="hidden">
+      <button onclick="document.getElementById('imageLoader').click()" class="w-full bg-red-500 hover:bg-red-600 text-white py-3 px-4 rounded mb-4 transition">
+        📁 Фото жүктеу
+      </button>
+
+      <h2 class="text-xl font-semibold mt-6 mb-4">📹 Веб-камераны қосу</h2>
+      <button onclick="startWebcam()" class="w-full bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded mb-4 transition">
+        🎥 Веб-камераны қосу
+      </button>
+
+      <!-- Болжау батырмасы -->
+      <button id="predictBtn" onclick="predictCurrent()" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded mb-4 transition" disabled>
+        🔍 Болжау
+      </button>
+
+      <div id="loading" class="text-yellow-500 text-center py-4 hidden">
+        Модель жүктелуде...
+      </div>
+
+      <div id="result" class="text-2xl font-bold text-center py-4 bg-gray-50 rounded">
+        Модель жүктелмеді
+      </div>
+
+      <img id="preview" alt="Preview" class="mt-4 w-full max-w-md mx-auto rounded hidden">
+      <video id="webcam" autoplay playsinline class="mt-4 w-full max-w-md mx-auto rounded hidden"></video>
+    </div>
+
+    <!-- Оң жақ: Нәтиже -->
+    <div class="bg-white p-6 rounded shadow">
+      <h2 class="text-xl font-semibold mb-4">📊 Нәтиже</h2>
+      <div id="finalResult" class="text-3xl font-bold text-center py-8 bg-blue-50 rounded">
+        Жас: ...
+      </div>
+      <p class="text-sm text-gray-500 mt-4">* Егер фото немесе камера арқылы болжау жасалса, нәтиже осы жерде көрсетіледі.</p>
+    </div>
+
+  </div>
+</main>
+
+<footer class="bg-blue-800 text-white p-4 mt-6 text-center">
+  © 2025 Адам жасын анықтау
+</footer>
+
+<script>
+  let model;
+  let currentImage = null;
+
+  async function loadModel() {
+    document.getElementById('loading').classList.remove('hidden');
+    try {
+      // МОДЕЛЬДІҢ ДҰРЫС ЖОЛЫН ТЕКСЕРІҢІЗ!
+      model = await tf.loadLayersModel('./model/model.json');
+      console.log('✅ Модель жүктелді!');
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('result').innerText = 'Модель дайын!';
+      document.getElementById('predictBtn').disabled = false;
+    } catch (error) {
+      console.error('❌ Модель жүктелмеді:', error);
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('result').innerText = 'Модель жүктелмеді';
+    }
+  }
+
+  async function predictAge(imageElement) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 224;
+    canvas.height = 224;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(imageElement, 0, 0, 224, 224);
+
+    // Тензорға айналдыру
+    let tensor = tf.browser.fromPixels(canvas)
+      .resizeNearestNeighbor([224, 224])
+      .toFloat()
+      .div(255.0)
+      .expandDims();
+
+    // Болжау
+    const prediction = model.predict(tensor);
+    const age = prediction.dataSync()[0];
+    document.getElementById('finalResult').innerText = `🧍‍♂️ Жас: ${Math.round(age)}`;
+    
+    tensor.dispose();
+  }
+
+  // Файлды жүктеу
+  document.getElementById('imageLoader').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      document.getElementById('preview').src = url;
+      document.getElementById('preview').classList.remove('hidden');
+      document.getElementById('webcam').classList.add('hidden');
+      currentImage = img;
+    };
+    img.src = url;
+  });
+
+  // Веб-камераны қосу
+  async function startWebcam() {
+    const video = document.getElementById('webcam');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      video.classList.remove('hidden');
+      document.getElementById('preview').classList.add('hidden');
+      currentImage = video;
+    } catch (err) {
+      console.error('Камера қосылмады:', err);
+      document.getElementById('result').innerText = 'Камера қосылмады';
+    }
+  }
+
+  // Болжау батырмасы
+  function predictCurrent() {
+    if (!currentImage) {
+      alert("💡 Алдымен фото жүктеңіз немесе веб-камераны қосыңыз!");
+      return;
+    }
+    predictAge(currentImage);
+  }
+
+  // Бастау
+  window.onload = loadModel;
+</script>
+
+</body>
+</html>
